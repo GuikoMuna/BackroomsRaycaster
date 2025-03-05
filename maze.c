@@ -11,7 +11,7 @@ typedef struct {
 } Vector2;
 
 typedef struct {
-    bool walls[4]; // 0: cima, 1: direita, 2: baixo, 3: esquerda
+    int walls; // Bitmask for walls: 0b0001 (top), 0b0010 (right), 0b0100 (bottom), 0b1000 (left)
     bool visited;
 } MazeCell;
 
@@ -24,7 +24,7 @@ MazeCell maze[WIDTH][HEIGHT];
 unsigned int rVisits = WIDTH * HEIGHT;
 Vector2Node* mainStack = NULL;
 
-// Funções da pilha
+// Stack functions
 Vector2Node* push(Vector2Node* stack, Vector2 data) {
     Vector2Node* node = (Vector2Node*)malloc(sizeof(Vector2Node));
     if (!node) exit(1);
@@ -35,7 +35,7 @@ Vector2Node* push(Vector2Node* stack, Vector2 data) {
 
 Vector2 pop(Vector2Node** stack) {
     if (*stack == NULL) {
-        Vector2 v = {-1, -1}; // Valor inválido
+        Vector2 v = {-1, -1}; // Invalid value
         return v;
     }
     Vector2Node* temp = *stack;
@@ -61,13 +61,11 @@ Vector2 getFromIndex(Vector2Node* stack, int index) {
     return stack->data;
 }
 
-// Geração do labirinto
+// Maze generation
 void generate_maze() {
     for (int x = 0; x < WIDTH; x++) {
         for (int y = 0; y < HEIGHT; y++) {
-            for (int i = 0; i < 4; i++) {
-                maze[x][y].walls[i] = true;
-            }
+            maze[x][y].walls = 0b1111; // All walls initially present
             maze[x][y].visited = false;
         }
     }
@@ -76,32 +74,36 @@ void generate_maze() {
 void removeWalls(Vector2 a, Vector2 b) {
     if (a.x == b.x) {
         if (a.y < b.y) {
-            maze[a.x][a.y].walls[2] = false;
-            maze[b.x][b.y].walls[0] = false;
+            // Remove bottom wall of a and top wall of b
+            maze[a.x][a.y].walls &= ~0b0100; // Clear bottom wall of a
+            maze[b.x][b.y].walls &= ~0b0001; // Clear top wall of b
         } else {
-            maze[a.x][a.y].walls[0] = false;
-            maze[b.x][b.y].walls[2] = false;
+            // Remove top wall of a and bottom wall of b
+            maze[a.x][a.y].walls &= ~0b0001; // Clear top wall of a
+            maze[b.x][b.y].walls &= ~0b0100; // Clear bottom wall of b
         }
     } else {
         if (a.x < b.x) {
-            maze[a.x][a.y].walls[1] = false;
-            maze[b.x][b.y].walls[3] = false;
+            // Remove right wall of a and left wall of b
+            maze[a.x][a.y].walls &= ~0b0010; // Clear right wall of a
+            maze[b.x][b.y].walls &= ~0b1000; // Clear left wall of b
         } else {
-            maze[a.x][a.y].walls[3] = false;
-            maze[b.x][b.y].walls[1] = false;
+            // Remove left wall of a and right wall of b
+            maze[a.x][a.y].walls &= ~0b1000; // Clear left wall of a
+            maze[b.x][b.y].walls &= ~0b0010; // Clear right wall of b
         }
     }
 }
 
 Vector2 checkNbs(Vector2 curr) {
     Vector2 nbs[4] = {
-        {curr.x, curr.y - 1}, // Cima
-        {curr.x + 1, curr.y}, // Direita
-        {curr.x, curr.y + 1}, // Baixo
-        {curr.x - 1, curr.y}  // Esquerda
+        {curr.x, curr.y - 1}, // Top
+        {curr.x + 1, curr.y}, // Right
+        {curr.x, curr.y + 1}, // Bottom
+        {curr.x - 1, curr.y}  // Left
     };
     Vector2Node* stack = NULL;
-    
+
     for (int i = 0; i < 4; i++) {
         if (nbs[i].x >= 0 && nbs[i].x < WIDTH && nbs[i].y >= 0 && nbs[i].y < HEIGHT) {
             if (!maze[nbs[i].x][nbs[i].y].visited) {
@@ -115,14 +117,14 @@ Vector2 checkNbs(Vector2 curr) {
         int index = rand() % stackSize;
         Vector2 next = getFromIndex(stack, index);
         removeWalls(curr, next);
-        
-        // Libera a memória da pilha temporária
+
+        // Free the temporary stack
         while (stack) pop(&stack);
-        
+
         return next;
     }
 
-    // Libera a memória da pilha temporária
+    // Free the temporary stack
     while (stack) pop(&stack);
 
     return pop(&mainStack);
@@ -130,28 +132,27 @@ Vector2 checkNbs(Vector2 curr) {
 
 void print_maze() {
     char symbols[16] = {
-        'A',  // 0000
-        'B',  // 0001 (baixo)
-        'C',  // 0010 (direita)
-        'D',  // 0011 (direita + baixo)
-        'E',  // 0100 (cima)
-        'F',  // 0101 (cima + baixo)
-        'G',  // 0110 (cima + direita)
-        'H',  // 0111 (cima + direita + baixo)
-        'I',  // 1000 (esquerda)
-        'J',  // 1001 (esquerda + baixo)
-        'K',  // 1010 (esquerda + direita)
-        'L',  // 1011 (esquerda + direita + baixo)
-        'M',  // 1100 (esquerda + cima)
-        'N',  // 1101 (esquerda + cima + baixo)
-        'O',  // 1110 (esquerda + cima + direita)
-        'P'   // 1111 (todas)
+        'A',  // 0000 (no walls)
+        'B',  // 0001 (top)
+        'C',  // 0010 (right)
+        'D',  // 0011 (top + right)
+        'E',  // 0100 (bottom)
+        'F',  // 0101 (top + bottom)
+        'G',  // 0110 (right + bottom)
+        'H',  // 0111 (top + right + bottom)
+        'I',  // 1000 (left)
+        'J',  // 1001 (top + left)
+        'K',  // 1010 (right + left)
+        'L',  // 1011 (top + right + left)
+        'M',  // 1100 (bottom + left)
+        'N',  // 1101 (top + bottom + left)
+        'O',  // 1110 (right + bottom + left)
+        'P'   // 1111 (all walls)
     };
 
     for (int y = 0; y < HEIGHT; y++) {
         for (int x = 0; x < WIDTH; x++) {
-            int code = (maze[x][y].walls[0] << 3) | (maze[x][y].walls[1] << 2) | 
-                       (maze[x][y].walls[2] << 1) | (maze[x][y].walls[3]);
+            int code = maze[x][y].walls & 0b1111; // Ensure only the lower 4 bits are used
             printf("%c", symbols[code]);
         }
         printf("\n");
@@ -162,7 +163,7 @@ void print_maze() {
 int main() {
     srand(time(NULL));
     generate_maze();
-    
+
     Vector2 curr = {0, 0};
     mainStack = push(mainStack, curr);
 
@@ -179,7 +180,7 @@ int main() {
     }
 
     print_maze();
-    
+
     // Free the remaining stack memory
     while (mainStack) pop(&mainStack);
     return 0;
