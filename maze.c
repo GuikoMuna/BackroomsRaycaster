@@ -5,6 +5,8 @@
 
 #define WIDTH 20
 #define HEIGHT 10
+#define WIDTHCONVERTED (2 * WIDTH + 1)
+#define HEIGHTCONVERTED (2 * HEIGHT + 1)
 
 typedef struct {
     int x, y;
@@ -21,6 +23,7 @@ typedef struct Vector2Node {
 } Vector2Node;
 
 MazeCell maze[WIDTH][HEIGHT];
+bool convertedMaze[WIDTHCONVERTED][HEIGHTCONVERTED];
 unsigned int rVisits = WIDTH * HEIGHT;
 Vector2Node* mainStack = NULL;
 
@@ -130,34 +133,46 @@ Vector2 checkNbs(Vector2 curr) {
     return pop(&mainStack);
 }
 
-void print_maze() {
-    char symbols[16] = {
-        'A',  // 0000 (no walls)
-        'B',  // 0001 (top)
-        'C',  // 0010 (right)
-        'D',  // 0011 (top + right)
-        'E',  // 0100 (bottom)
-        'F',  // 0101 (top + bottom)
-        'G',  // 0110 (right + bottom)
-        'H',  // 0111 (top + right + bottom)
-        'I',  // 1000 (left)
-        'J',  // 1001 (top + left)
-        'K',  // 1010 (right + left)
-        'L',  // 1011 (top + right + left)
-        'M',  // 1100 (bottom + left)
-        'N',  // 1101 (top + bottom + left)
-        'O',  // 1110 (right + bottom + left)
-        'P'   // 1111 (all walls)
-    };
+void convertMaze() {
+    // Initialize convertedMaze with walls
+    for (int x = 0; x < WIDTHCONVERTED; x++) {
+        for (int y = 0; y < HEIGHTCONVERTED; y++) {
+            convertedMaze[x][y] = true; // Start with all walls
+        }
+    }
 
-    for (int y = 0; y < HEIGHT; y++) {
-        for (int x = 0; x < WIDTH; x++) {
-            int code = maze[x][y].walls & 0b1111; // Ensure only the lower 4 bits are used
-            printf("%c", symbols[code]);
+    // Convert the maze
+    for (int x = 0; x < WIDTH; x++) {
+        for (int y = 0; y < HEIGHT; y++) {
+            int cx = 2 * x + 1;
+            int cy = 2 * y + 1;
+
+            convertedMaze[cx][cy] = false; // Cell is open
+
+            // Check walls
+            if (!(maze[x][y].walls & 0b0001)) { // Top wall
+                convertedMaze[cx][cy - 1] = false;
+            }
+            if (!(maze[x][y].walls & 0b0010)) { // Right wall
+                convertedMaze[cx + 1][cy] = false;
+            }
+            if (!(maze[x][y].walls & 0b0100)) { // Bottom wall
+                convertedMaze[cx][cy + 1] = false;
+            }
+            if (!(maze[x][y].walls & 0b1000)) { // Left wall
+                convertedMaze[cx - 1][cy] = false;
+            }
+        }
+    }
+}
+
+void print_maze() {
+    for (int y = 0; y < HEIGHTCONVERTED; y++) {
+        for (int x = 0; x < WIDTHCONVERTED; x++) {
+            printf(convertedMaze[x][y] ? "1" : "0");
         }
         printf("\n");
     }
-    printf("\n"); // Add a newline at the end
 }
 
 int main() {
@@ -179,6 +194,7 @@ int main() {
         }
     }
 
+    convertMaze();
     print_maze();
 
     // Free the remaining stack memory
