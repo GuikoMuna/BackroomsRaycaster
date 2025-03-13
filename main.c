@@ -12,6 +12,8 @@
 #define ORIGINAL_MAZE_HEIGHT 15
 #define CONVERTED_MAZE_WIDTH (2 * ORIGINAL_MAZE_WIDTH + 1)
 #define CONVERTED_MAZE_HEIGHT (2 * ORIGINAL_MAZE_HEIGHT + 1)
+const float CELL_WIDTH = (float)WINDOW_WIDTH / (float)CONVERTED_MAZE_WIDTH;
+const float CELL_HEIGHT = (float)WINDOW_HEIGHT / (float)CONVERTED_MAZE_HEIGHT;
 
 // Maze Logic -------------------------------------------------------------
 typedef struct {
@@ -34,7 +36,7 @@ typedef struct Vector2IntNode {
 
 Vector2IntNode* mainStack = NULL;
 
-// Stack functions
+    // Stack functions
 Vector2IntNode* push(Vector2IntNode* stack, Vector2Int data) {
     Vector2IntNode* node = (Vector2IntNode*)malloc(sizeof(Vector2IntNode));
     if (!node) exit(1);
@@ -174,14 +176,6 @@ void generate_maze() {
 }
 
 void drawMaze() {
-    // Get the screen dimensions
-    int screenWidth = glutGet(GLUT_WINDOW_WIDTH);
-    int screenHeight = glutGet(GLUT_WINDOW_HEIGHT);
-
-    // Calculate the size of each square based on the screen size and maze dimensions
-    float squareWidth = (float)screenWidth / CONVERTED_MAZE_WIDTH;
-    float squareHeight = (float)screenHeight / CONVERTED_MAZE_HEIGHT;
-
     // Loop through the maze matrix
     for (int i = 0; i < CONVERTED_MAZE_HEIGHT; i++) {
         for (int j = 0; j < CONVERTED_MAZE_WIDTH; j++) {
@@ -194,10 +188,10 @@ void drawMaze() {
 
             // Draw the square
             glBegin(GL_QUADS);
-            glVertex2f(j * squareWidth, i * squareHeight);
-            glVertex2f((j + 1) * squareWidth, i * squareHeight);
-            glVertex2f((j + 1) * squareWidth, (i + 1) * squareHeight);
-            glVertex2f(j * squareWidth, (i + 1) * squareHeight);
+            glVertex2f(j * CELL_WIDTH, i * CELL_HEIGHT);
+            glVertex2f((j + 1) * CELL_WIDTH, i * CELL_HEIGHT);
+            glVertex2f((j + 1) * CELL_WIDTH, (i + 1) * CELL_HEIGHT);
+            glVertex2f(j * CELL_WIDTH, (i + 1) * CELL_HEIGHT);
             glEnd();
         }
     }
@@ -215,7 +209,21 @@ struct Player
     float dx;
     float dy;
     float dtheta;
-} player = {100, 100, 0, 10, 10, 0, 0.1};
+} player = {1.5 * CELL_WIDTH, 1.5 * CELL_HEIGHT, 0, 10, 10, 0, 0.1};
+
+bool checkCollision(bool forward)
+{
+    int x = player.x + (forward ? player.dx : -player.dx);
+    int y = player.y + (forward ? player.dy : -player.dy);
+    int cx = x / CELL_WIDTH;
+    int cy = y / CELL_HEIGHT;
+
+    if (cx >= 0 && cx < CONVERTED_MAZE_WIDTH && cy >= 0 && cy < CONVERTED_MAZE_HEIGHT)
+    {
+        return convertedMaze[cx][cy];
+    }
+    return true;
+}
 
 void drawPlayer()
 {
@@ -244,8 +252,11 @@ void buttons(unsigned char key, int x, int y)
 {
     if (key == 'w')
     {
-        player.x += player.dx;
-        player.y += player.dy;
+        if (!checkCollision(true))
+        {
+            player.x += player.dx;
+            player.y += player.dy;
+        }
     }
     if (key == 'a')
     {
@@ -263,8 +274,11 @@ void buttons(unsigned char key, int x, int y)
     }
     if (key == 's')
     {
-        player.x -= player.dx;
-        player.y -= player.dy;
+        if (checkCollision(false))
+        {
+            player.x -= player.dx;
+            player.y -= player.dy;
+        }
     }
     glutPostRedisplay();
 }
