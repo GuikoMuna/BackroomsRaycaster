@@ -6,10 +6,12 @@
 #include <time.h>
 
 #define PI 3.1415926535
+#define FOV 60
+#define RAY_COUNT 100
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
-#define ORIGINAL_MAZE_WIDTH 20
-#define ORIGINAL_MAZE_HEIGHT 15
+#define ORIGINAL_MAZE_WIDTH 5
+#define ORIGINAL_MAZE_HEIGHT 5
 #define CONVERTED_MAZE_WIDTH (2 * ORIGINAL_MAZE_WIDTH + 1)
 #define CONVERTED_MAZE_HEIGHT (2 * ORIGINAL_MAZE_HEIGHT + 1)
 const float CELL_WIDTH = (float)WINDOW_WIDTH / (float)CONVERTED_MAZE_WIDTH;
@@ -176,17 +178,14 @@ void generate_maze() {
 }
 
 void drawMaze() {
-    // Loop through the maze matrix
-    for (int i = 0; i < CONVERTED_MAZE_HEIGHT; i++) {
-        for (int j = 0; j < CONVERTED_MAZE_WIDTH; j++) {
-            // Set the color based on the value in the matrix
-            if (convertedMaze[j][i]) {
-                glColor3f(1.0f, 1.0f, 1.0f); // White (wall)
-            } else {
-                glColor3f(0.0f, 0.0f, 0.0f); // Black (open space)
-            }
 
-            // Draw the square
+    for (int i = 0; i < CONVERTED_MAZE_HEIGHT; i++) 
+    {
+        for (int j = 0; j < CONVERTED_MAZE_WIDTH; j++) 
+        {
+            if (convertedMaze[j][i]) glColor3f(1.0f, 1.0f, 1.0f);
+            else glColor3f(0.0f, 0.0f, 0.0f);
+
             glBegin(GL_QUADS);
             glVertex2f(j * CELL_WIDTH, i * CELL_HEIGHT);
             glVertex2f((j + 1) * CELL_WIDTH, i * CELL_HEIGHT);
@@ -240,11 +239,42 @@ void drawPlayer()
     glEnd();
 }
 
+// Raycasting Logic ---------------------------------------------------------
+
+void castRays()
+{
+    float rAngle = player.theta - (FOV * (PI / 180) / 2);
+    float dAngle = (FOV * (PI / 180)) / RAY_COUNT;
+
+    for (int i = 0; i < RAY_COUNT; i++)
+    {
+        float rX = player.x;
+        float rY = player.y;
+        float rDX = cos(rAngle);
+        float rDY = sin(rAngle);
+
+        while (convertedMaze[(int)(rX / CELL_WIDTH)][(int)(rY / CELL_HEIGHT)] == false)
+        {
+            rX += rDX * 4;
+            rY += rDY * 4;
+        }
+
+        glBegin(GL_LINES);
+        glColor3f(1, 0, 0);
+        glVertex2i(player.x, player.y);
+        glVertex2i(rX, rY);
+        glEnd();
+
+        rAngle += dAngle;
+    }
+}
+
 void display()
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     drawMaze(); // Draw the maze
     drawPlayer(); // Draw the player
+    castRays();
     glutSwapBuffers();
 }
 
@@ -274,7 +304,7 @@ void buttons(unsigned char key, int x, int y)
     }
     if (key == 's')
     {
-        if (checkCollision(false))
+        if (!checkCollision(false))
         {
             player.x -= player.dx;
             player.y -= player.dy;
