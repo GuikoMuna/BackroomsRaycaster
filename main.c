@@ -6,12 +6,15 @@
 #include <time.h>
 
 #define PI 3.1415926535
+#define FOV 60
+#define RAY_COUNT 100
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
-#define ORIGINAL_MAZE_WIDTH 20
-#define ORIGINAL_MAZE_HEIGHT 15
+#define ORIGINAL_MAZE_WIDTH 250
+#define ORIGINAL_MAZE_HEIGHT 250
 #define CONVERTED_MAZE_WIDTH (2 * ORIGINAL_MAZE_WIDTH + 1)
 #define CONVERTED_MAZE_HEIGHT (2 * ORIGINAL_MAZE_HEIGHT + 1)
+#define CELL_SIZE 100
 
 // Maze Logic -------------------------------------------------------------
 typedef struct {
@@ -34,7 +37,7 @@ typedef struct Vector2IntNode {
 
 Vector2IntNode* mainStack = NULL;
 
-// Stack functions
+    // Stack functions
 Vector2IntNode* push(Vector2IntNode* stack, Vector2Int data) {
     Vector2IntNode* node = (Vector2IntNode*)malloc(sizeof(Vector2IntNode));
     if (!node) exit(1);
@@ -173,36 +176,6 @@ void generate_maze() {
     while (mainStack) pop(&mainStack);
 }
 
-void drawMaze() {
-    // Get the screen dimensions
-    int screenWidth = glutGet(GLUT_WINDOW_WIDTH);
-    int screenHeight = glutGet(GLUT_WINDOW_HEIGHT);
-
-    // Calculate the size of each square based on the screen size and maze dimensions
-    float squareWidth = (float)screenWidth / CONVERTED_MAZE_WIDTH;
-    float squareHeight = (float)screenHeight / CONVERTED_MAZE_HEIGHT;
-
-    // Loop through the maze matrix
-    for (int i = 0; i < CONVERTED_MAZE_HEIGHT; i++) {
-        for (int j = 0; j < CONVERTED_MAZE_WIDTH; j++) {
-            // Set the color based on the value in the matrix
-            if (convertedMaze[j][i]) {
-                glColor3f(1.0f, 1.0f, 1.0f); // White (wall)
-            } else {
-                glColor3f(0.0f, 0.0f, 0.0f); // Black (open space)
-            }
-
-            // Draw the square
-            glBegin(GL_QUADS);
-            glVertex2f(j * squareWidth, i * squareHeight);
-            glVertex2f((j + 1) * squareWidth, i * squareHeight);
-            glVertex2f((j + 1) * squareWidth, (i + 1) * squareHeight);
-            glVertex2f(j * squareWidth, (i + 1) * squareHeight);
-            glEnd();
-        }
-    }
-}
-
 // Player Logic -------------------------------------------------------------
 
 struct Player
@@ -215,28 +188,70 @@ struct Player
     float dx;
     float dy;
     float dtheta;
-} player = {100, 100, 0, 10, 10, 0, 0.1};
+} player = {1.5 * CELL_SIZE, 1.5 * CELL_SIZE, 0, 10, 10, 0, 0.1};
 
-void drawPlayer()
+bool checkCollision(bool forward)
 {
-    glColor3f(1, 1, 0);
-    glPointSize(8);
-    glBegin(GL_POINTS);
-    glVertex2i(player.x, player.y);
-    glEnd();
+    int x = player.x + (forward ? player.dx : -player.dx);
+    int y = player.y + (forward ? player.dy : -player.dy);
+    int cx = x / CELL_SIZE;
+    int cy = y / CELL_SIZE;
 
-    glLineWidth(3);
-    glBegin(GL_LINES);
-    glVertex2i(player.x, player.y);
-    glVertex2i(player.x + player.dx*5, player.y + player.dy*5);
-    glEnd();
+    if (cx >= 0 && cx < CONVERTED_MAZE_WIDTH && cy >= 0 && cy < CONVERTED_MAZE_HEIGHT)
+    {
+        return convertedMaze[cx][cy];
+    }
+    return true;
 }
 
-void display()
-{
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    drawMaze(); // Draw the maze
-    drawPlayer(); // Draw the player
+// Raycasting Logic ---------------------------------------------------------
+
+void castRays() {
+    glClear(GL_COLOR_BUFFER_BIT);
+    
+    for (int col = 0; col < WINDOW_WIDTH; col++) {
+
+        float rayAngle = player.theta + ((col - WINDOW_WIDTH / 2.0f) / WINDOW_WIDTH) * FOV * (PI / 180.0);
+        
+        float dirX = cos(rayAngle);
+        float dirY = sin(rayAngle);
+
+        float rayX = player.x;
+        float rayY = player.y;
+
+        float distance = 0;
+        while (distance < 1000) {
+            rayX += dirX * 4;
+            rayY += dirY * 4;
+            distance += 4;
+
+            int mapX = (int)(rayX / CELL_SIZE);
+            int mapY = (int)(rayY / CELL_SIZE);
+
+            if (mapX >= 0 && mapX < CONVERTED_MAZE_WIDTH && mapY >= 0 && mapY < CONVERTED_MAZE_HEIGHT && convertedMaze[mapX][mapY] == 1) {
+                break;
+            }
+        }
+
+        if (distance == 0) distance = 1;
+
+        float correctedDistance = distance * cos(rayAngle - player.theta);
+
+        int wallHeight = (CELL_SIZE * WINDOW_HEIGHT) / correctedDistance;
+
+        int wallStart = (WINDOW_HEIGHT / 2) - (wallHeight / 2);
+        int wallEnd = (WINDOW_HEIGHT / 2) + (wallHeight / 2);
+
+        float shade = 1.0 - (distance / 500.0);
+        if (shade < 0.1) shade = 0.1;
+        glColor3f(shade, shade, 0);
+
+        glBegin(GL_LINES);
+        glVertex2i(col, wallStart);
+        glVertex2i(col, wallEnd);
+        glEnd();
+    }
+
     glutSwapBuffers();
 }
 
@@ -244,8 +259,11 @@ void buttons(unsigned char key, int x, int y)
 {
     if (key == 'w')
     {
-        player.x += player.dx;
-        player.y += player.dy;
+        if (!checkCollision(true))
+        {
+            player.x += player.dx;
+            player.y += player.dy;
+        }
     }
     if (key == 'a')
     {
@@ -263,8 +281,11 @@ void buttons(unsigned char key, int x, int y)
     }
     if (key == 's')
     {
-        player.x -= player.dx;
-        player.y -= player.dy;
+        if (!checkCollision(false))
+        {
+            player.x -= player.dx;
+            player.y -= player.dy;
+        }
     }
     glutPostRedisplay();
 }
@@ -285,7 +306,7 @@ int main(int argc, char** argv)
     initBeforeRender();
     generate_maze(); // Generate the maze
 
-    glutDisplayFunc(display);
+    glutDisplayFunc(castRays);
     glutKeyboardFunc(buttons);
     glutMainLoop();
     return 0;
